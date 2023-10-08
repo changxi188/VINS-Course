@@ -18,3 +18,4 @@ log/
 output/
 
 pose_output.txt
+*.cache/
