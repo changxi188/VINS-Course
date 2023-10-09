@@ -42,8 +42,8 @@ int FeatureManager::getFeatureCount()
 bool FeatureManager::addFeatureCheckParallax(
     int frame_count, const std::map<int, std::vector<std::pair<int, Eigen::Matrix<double, 7, 1>>>>& image, double td)
 {
-    // ROS_DEBUG("input feature_: %d", (int)image.size());
-    // ROS_DEBUG("num of feature_: %d", getFeatureCount());
+    LOG(INFO) << "usefull feature number before add new feature : " << getFeatureCount()
+              << ", all feature number : " << feature_.size();
     double parallax_sum = 0;
     int    parallax_num = 0;
     last_track_num_     = 0;
@@ -67,8 +67,13 @@ bool FeatureManager::addFeatureCheckParallax(
         }
     }
 
+    LOG(INFO) << "usefull feature number after add new feature : " << getFeatureCount()
+              << ", all feature number : " << feature_.size();
+
     if (frame_count < 2 || last_track_num_ < 20)
+    {
         return true;
+    }
 
     for (auto& it_per_id : feature_)
     {
@@ -86,8 +91,8 @@ bool FeatureManager::addFeatureCheckParallax(
     }
     else
     {
-        // ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
-        // ROS_DEBUG("current parallax: %lf", parallax_sum / parallax_num * FOCAL_LENGTH);
+        LOG(INFO) << "parallax_sum: " << parallax_sum << ", parallax_num: " << parallax_num;
+        LOG(INFO) << "current parallax: " << parallax_sum / parallax_num;
         return parallax_sum / parallax_num >= MIN_PARALLAX;
     }
 }
@@ -119,18 +124,19 @@ std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> FeatureManager::getCorr
     std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> corres;
     for (auto& it : feature_)
     {
-        if (it.start_frame <= frame_count_l && it.endFrame() >= frame_count_r)
+        if (it.start_frame > frame_count_l || it.endFrame() < frame_count_r)
         {
-            Eigen::Vector3d a = Eigen::Vector3d::Zero(), b = Eigen::Vector3d::Zero();
-            int             idx_l = frame_count_l - it.start_frame;
-            int             idx_r = frame_count_r - it.start_frame;
-
-            a = it.feature_per_frame[idx_l].point;
-
-            b = it.feature_per_frame[idx_r].point;
-
-            corres.push_back(std::make_pair(a, b));
+            continue;
         }
+        Eigen::Vector3d a = Eigen::Vector3d::Zero(), b = Eigen::Vector3d::Zero();
+        int             idx_l = frame_count_l - it.start_frame;
+        int             idx_r = frame_count_r - it.start_frame;
+
+        a = it.feature_per_frame[idx_l].point;
+
+        b = it.feature_per_frame[idx_r].point;
+
+        corres.push_back(std::make_pair(a, b));
     }
     return corres;
 }

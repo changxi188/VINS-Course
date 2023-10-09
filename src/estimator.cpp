@@ -146,12 +146,12 @@ void Estimator::processImage(const std::map<int, std::vector<std::pair<int, Eige
     if (f_manager_.addFeatureCheckParallax(frame_count_, image, td_))
     {
         marginalization_flag_ = MARGIN_OLD;
-        LOG(INFO) << "processImage --- this frame is accept, is a keyframe ";
+        LOG(INFO) << "processImage --- this frame is accept, is a keyframe";
     }
     else
     {
         marginalization_flag_ = MARGIN_SECOND_NEW;
-        LOG(INFO) << "processImage --- this frame is reject, is not a keyframe)";
+        LOG(INFO) << "processImage --- this frame is reject, is not a keyframe";
     }
 
     LOG(INFO) << "processImage --- Solving " << frame_count_;
@@ -191,17 +191,21 @@ void Estimator::processImage(const std::map<int, std::vector<std::pair<int, Eige
             bool result = false;
             if (ESTIMATE_EXTRINSIC != 2 && (header - initial_timestamp_) > 0.1)
             {
-                // cout << "1 initialStructure" << endl;
                 result             = initialStructure();
                 initial_timestamp_ = header;
             }
+            else
+            {
+                LOG(WARNING) << "processImage --- The time since the last initialization is too short.";
+            }
+
             if (result)
             {
                 solver_flag_ = NON_LINEAR;
                 solveOdometry();
                 slideWindow();
                 f_manager_.removeFailures();
-                std::cout << "Initialization finish!" << std::endl;
+                LOG(INFO) << "processImage --- Initialization finish!";
                 last_R_  = Rs_[WINDOW_SIZE];
                 last_P_  = Ps_[WINDOW_SIZE];
                 last_R0_ = Rs_[0];
@@ -238,7 +242,9 @@ void Estimator::processImage(const std::map<int, std::vector<std::pair<int, Eige
         //  prepare output of VINS
         key_poses_.clear();
         for (int i = 0; i <= WINDOW_SIZE; i++)
+        {
             key_poses_.push_back(Ps_[i]);
+        }
 
         last_R_  = Rs_[WINDOW_SIZE];
         last_P_  = Ps_[WINDOW_SIZE];
@@ -271,10 +277,10 @@ bool Estimator::initialStructure()
             // cout << "frame g " << tmp_g.transpose() << endl;
         }
         var = sqrt(var / ((int)all_image_frame_.size() - 1));
-        // ROS_WARN("IMU variation %f!", var);
+        LOG(INFO) << "IMU variation " << var;
         if (var < 0.25)
         {
-            // ROS_INFO("IMU excitation not enouth!");
+            LOG(WARNING) << "IMU excitation not enouth!";
             // return false;
         }
     }
@@ -297,18 +303,20 @@ bool Estimator::initialStructure()
         }
         sfm_f.push_back(tmp_feature);
     }
+
+    // relative_R is window size frame to l frame
     Eigen::Matrix3d relative_R;
     Eigen::Vector3d relative_T;
     int             l;
     if (!relativePose(relative_R, relative_T, l))
     {
-        std::cout << "Not enough features or parallax; Move device around" << std::endl;
+        LOG(WARNING) << "initialStructure --- Not enough features or parallax; Move device around";
         return false;
     }
     GlobalSFM sfm;
     if (!sfm.construct(frame_count_ + 1, Q, T, l, relative_R, relative_T, sfm_f, sfm_tracked_points))
     {
-        std::cout << "global SFM failed!" << std::endl;
+        LOG(WARNING) << "initialStructure --- global SFM failed!";
         marginalization_flag_ = MARGIN_OLD;
         return false;
     }
@@ -362,12 +370,13 @@ bool Estimator::initialStructure()
         cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
         if (pts_3_vector.size() < 6)
         {
-            std::cout << "Not enough points for solve pnp pts_3_vector size " << pts_3_vector.size() << std::endl;
+            LOG(WARNING) << "initialStructure --- Not enough points for solve pnp pts_3_vector size "
+                         << pts_3_vector.size();
             return false;
         }
         if (!cv::solvePnP(pts_3_vector, pts_2_vector, K, D, rvec, t, 1))
         {
-            std::cout << " solve pnp fail!" << std::endl;
+            LOG(WARNING) << "initialStructure --- solve pnp fail!";
             return false;
         }
         cv::Rodrigues(rvec, r);
@@ -381,10 +390,12 @@ bool Estimator::initialStructure()
         frame_it->second.T = T_pnp;
     }
     if (visualInitialAlign())
+    {
         return true;
+    }
     else
     {
-        std::cout << "misalign visual structure with IMU" << std::endl;
+        LOG(INFO) << "initialStructure --- misalign visual structure with IMU";
         return false;
     }
 }
@@ -472,27 +483,28 @@ bool Estimator::relativePose(Eigen::Matrix3d& relative_R, Eigen::Vector3d& relat
     // find previous frame which contians enough correspondance and parallex with newest frame
     for (int i = 0; i < WINDOW_SIZE; i++)
     {
-        std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> corres;
-        corres = f_manager_.getCorresponding(i, WINDOW_SIZE);
-        if (corres.size() > 20)
+        std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> corres = f_manager_.getCorresponding(i, WINDOW_SIZE);
+        if (corres.size() <= 20)
         {
-            double sum_parallax = 0;
-            double average_parallax;
-            for (int j = 0; j < int(corres.size()); j++)
-            {
-                Eigen::Vector2d pts_0(corres[j].first(0), corres[j].first(1));
-                Eigen::Vector2d pts_1(corres[j].second(0), corres[j].second(1));
-                double          parallax = (pts_0 - pts_1).norm();
-                sum_parallax             = sum_parallax + parallax;
-            }
-            average_parallax = 1.0 * sum_parallax / int(corres.size());
-            if (average_parallax * 460 > 30 && m_estimator_.solveRelativeRT(corres, relative_R, relative_T))
-            {
-                l = i;
-                // ROS_DEBUG("average_parallax %f choose l %d and newest frame to triangulate the whole structure",
-                // average_parallax * 460, l);
-                return true;
-            }
+            continue;
+        }
+
+        double sum_parallax = 0;
+        double average_parallax;
+        for (int j = 0; j < int(corres.size()); j++)
+        {
+            Eigen::Vector2d pts_0(corres[j].first(0), corres[j].first(1));
+            Eigen::Vector2d pts_1(corres[j].second(0), corres[j].second(1));
+            double          parallax = (pts_0 - pts_1).norm();
+            sum_parallax             = sum_parallax + parallax;
+        }
+        average_parallax = 1.0 * sum_parallax / int(corres.size());
+        if (average_parallax * 460 > 30 && m_estimator_.solveRelativeRT(corres, relative_R, relative_T))
+        {
+            l = i;
+            LOG(INFO) << "relativePose --- average_parallax " << average_parallax * 460 << ", choose l " << l
+                      << " and newest frame to triangulate the whole structure";
+            return true;
         }
     }
     return false;
@@ -1147,8 +1159,6 @@ void Estimator::slideWindow()
         double t_0 = Headers_[0];
         back_R0_   = Rs_[0];
         back_P0_   = Ps_[0];
-        // if (frame_count_ == WINDOW_SIZE)
-        // {
         for (int i = 0; i < WINDOW_SIZE; i++)
         {
             Rs_[i].swap(Rs_[i + 1]);
@@ -1179,8 +1189,6 @@ void Estimator::slideWindow()
         linear_acceleration_buf_[WINDOW_SIZE].clear();
         angular_velocity_buf_[WINDOW_SIZE].clear();
 
-        // if (true || solver_flag_ == INITIAL)
-        // {
         std::map<double, ImageFrame>::iterator it_0;
         it_0 = all_image_frame_.find(t_0);
         delete it_0->second.pre_integration;
@@ -1196,13 +1204,9 @@ void Estimator::slideWindow()
         all_image_frame_.erase(all_image_frame_.begin(), it_0);
         all_image_frame_.erase(t_0);
         slideWindowOld();
-        // }
-        // }
     }
     else
     {
-        // if (frame_count_ == WINDOW_SIZE)
-        // {
         for (unsigned int i = 0; i < dt_buf_[frame_count_].size(); i++)
         {
             double          tmp_dt                  = dt_buf_[frame_count_][i];
@@ -1231,7 +1235,6 @@ void Estimator::slideWindow()
         angular_velocity_buf_[WINDOW_SIZE].clear();
 
         slideWindowNew();
-        // }
     }
 }
 

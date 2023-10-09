@@ -372,7 +372,7 @@ void System::ProcessBackEnd()
             }
         }
 
-        LOG(INFO) << "ProcessBackEnd --- over process backend, cost : " << backend_timer.toc() << " ms.";
+        LOG(INFO) << "ProcessBackEnd --- over process backend, cost : " << backend_timer.toc() << " ms. \n\n";
     }
 }
 

@@ -10,12 +10,16 @@
 class ImageFrame
 {
 public:
-    ImageFrame(){};
+    ImageFrame()
+    {
+    }
+
     ImageFrame(const std::map<int, std::vector<std::pair<int, Eigen::Matrix<double, 7, 1>>>>& _points, double _t)
       : t{_t}, is_key_frame{false}
     {
         points = _points;
-    };
+    }
+
     std::map<int, std::vector<std::pair<int, Eigen::Matrix<double, 7, 1>>>> points;
     double                                                                  t;  // timestamp
     Eigen::Matrix3d                                                         R;
