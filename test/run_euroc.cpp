@@ -14,7 +14,7 @@
 
 #include "System.h"
 
-const int   nDelayTimes  = 2;
+const int   nDelayTimes  = 1;
 std::string sData_path   = "/media/cheng/holo1/rosbag/MH_05_difficult/mav0/";
 std::string sConfig_path = "./config/";
 
@@ -24,7 +24,7 @@ std::shared_ptr<System> pSystem;
 
 void SignalHandler(int signum)
 {
-    std::cout << "Caught signal : " << signum << std::endl;
+    std::cout << "SignalHandler --- Caught signal : " << signum << std::endl;
     pub_running = false;
 }
 
@@ -109,11 +109,6 @@ int main(int argc, char** argv)
 
     if (argc == 3)
     {
-        /*
-        LOG(WARNING) << "./run_euroc PATH_TO_FOLDER/MH-05/mav0 PATH_TO_CONFIG/config \n"
-                     << "For example: ./run_euroc /home/stevencui/dataset/EuRoC/MH-05/mav0/ ../config/";
-        return -1;
-        */
         sData_path   = argv[1];
         sConfig_path = argv[2];
     }
@@ -121,7 +116,6 @@ int main(int argc, char** argv)
     pSystem.reset(new System(sConfig_path));
 
     std::thread thd_BackEnd(&System::ProcessBackEnd, pSystem);
-
     std::thread thd_Draw(&System::Draw, pSystem);
 
     std::thread thd_PubImuData(PubImuData);

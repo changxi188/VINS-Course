@@ -119,7 +119,6 @@ void Estimator::processIMU(double dt, const Eigen::Vector3d& linear_acceleration
     if (frame_count_ != 0)
     {
         pre_integrations_[frame_count_]->push_back(dt, linear_acceleration, angular_velocity);
-        // if(solver_flag_ != NON_LINEAR)
         tmp_pre_integration_->push_back(dt, linear_acceleration, angular_velocity);
 
         dt_buf_[frame_count_].push_back(dt);
@@ -142,17 +141,21 @@ void Estimator::processIMU(double dt, const Eigen::Vector3d& linear_acceleration
 void Estimator::processImage(const std::map<int, std::vector<std::pair<int, Eigen::Matrix<double, 7, 1>>>>& image,
                              double                                                                         header)
 {
-    // ROS_DEBUG("new image coming ------------------------------------------");
-    //  cout << "Adding feature points: " << image.size()<<endl;
+    LOG(INFO) << "processImage --- new image coming";
+    LOG(INFO) << "processImage --- Adding feature points: " << image.size();
     if (f_manager_.addFeatureCheckParallax(frame_count_, image, td_))
+    {
         marginalization_flag_ = MARGIN_OLD;
+        LOG(INFO) << "processImage --- this frame is accept, is a keyframe ";
+    }
     else
+    {
         marginalization_flag_ = MARGIN_SECOND_NEW;
+        LOG(INFO) << "processImage --- this frame is reject, is not a keyframe)";
+    }
 
-    // ROS_DEBUG("this frame is--------------------%s", marginalization_flag_ ? "reject" : "accept");
-    // ROS_DEBUG("%s", marginalization_flag_ ? "Non-keyframe" : "Keyframe");
-    // ROS_DEBUG("Solving %d", frame_count_);
-    //  cout << "number of feature: " << f_manager_.getFeatureCount()<<endl;
+    LOG(INFO) << "processImage --- Solving " << frame_count_;
+    LOG(INFO) << "processImage --- number of feature: " << f_manager_.getFeatureCount();
     Headers_[frame_count_] = header;
 
     ImageFrame imageframe(image, header);
@@ -162,7 +165,7 @@ void Estimator::processImage(const std::map<int, std::vector<std::pair<int, Eige
 
     if (ESTIMATE_EXTRINSIC == 2)
     {
-        LOG(WARNING) << "calibrating extrinsic param, rotation movement is needed";
+        LOG(WARNING) << "processImage --- calibrating extrinsic param, rotation movement is needed";
         if (frame_count_ != 0)
         {
             std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> corres =
@@ -208,7 +211,9 @@ void Estimator::processImage(const std::map<int, std::vector<std::pair<int, Eige
                 slideWindow();
         }
         else
+        {
             frame_count_++;
+        }
     }
     else
     {

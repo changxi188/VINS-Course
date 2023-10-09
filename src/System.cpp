@@ -135,10 +135,10 @@ void System::PubImageData(double dStampSec, cv::Mat& img)
         std::vector<std::set<int>> hash_ids(NUM_OF_CAM);
         for (int i = 0; i < NUM_OF_CAM; i++)
         {
-            auto& un_pts       = trackerData_[i].cur_un_pts;
-            auto& cur_pts      = trackerData_[i].cur_pts;
-            auto& ids          = trackerData_[i].ids;
-            auto& pts_velocity = trackerData_[i].pts_velocity;
+            const auto& un_pts       = trackerData_[i].cur_un_pts;
+            const auto& cur_pts      = trackerData_[i].cur_pts;
+            const auto& ids          = trackerData_[i].ids;
+            const auto& pts_velocity = trackerData_[i].pts_velocity;
             for (unsigned int j = 0; j < ids.size(); j++)
             {
                 if (trackerData_[i].track_cnt[j] > 1)
@@ -156,6 +156,9 @@ void System::PubImageData(double dStampSec, cv::Mat& img)
                     feature_points->velocity_y_of_point.push_back(pts_velocity[j].y);
                 }
             }
+
+            LOG(INFO) << "PubImageData --- useful points size : " << feature_points->points.size()
+                      << ", all points size : " << ids.size();
 
             // skip the first image; since no optical speed on frist image
             if (!init_pub_)
@@ -256,7 +259,8 @@ void System::ProcessBackEnd()
     LOG(INFO) << "1 ProcessBackEnd start";
     while (bStart_backend_)
     {
-        // std::cout  << "1 process()" << std::endl;
+        TicToc backend_timer;
+        backend_timer.tic();
         std::vector<std::pair<std::vector<ImuConstPtr>, ImgConstPtr>> measurements;
 
         std::unique_lock<std::mutex> lk(m_buf_);
@@ -269,22 +273,26 @@ void System::ProcessBackEnd()
         }
         else if (measurements.size() > 1)
         {
-            std::cout << "1 getMeasurements size: " << measurements.size()
-                      << " imu sizes: " << measurements[0].first.size() << " feature_buf_ size: " << feature_buf_.size()
-                      << " imu_buf_ size: " << imu_buf_.size() << std::endl;
+            LOG(WARNING) << "1 getMeasurements size: " << measurements.size()
+                         << " imu sizes: " << measurements[0].first.size()
+                         << " feature_buf_ size: " << feature_buf_.size() << " imu_buf_ size: " << imu_buf_.size()
+                         << std::endl;
         }
         lk.unlock();
 
-        for (auto& measurement : measurements)
+        LOG(INFO) << "ProcessBackEnd --- success get measurements, begin process backend";
+        for (const auto& measurement : measurements)
         {
-            auto   img_msg = measurement.second;
-            double img_t   = img_msg->header + estimator_.td_;
-            LOG(INFO) << "imu msg size : " << measurement.first.size() << std::endl;
-            LOG(INFO) << "imu msg front timestamp : " << std::fixed << measurement.first.front()->header
-                      << ", back timestamp : " << measurement.first.back()->header << std::endl;
-            LOG(INFO) << "img msg front timestamp : " << std::fixed << measurement.second->header << std::endl;
+            const std::vector<ImuConstPtr> imu_msgs = measurement.first;
+            const ImgConstPtr              img_msg  = measurement.second;
+            double                         img_t    = img_msg->header + estimator_.td_;
+            LOG(INFO) << "imu msg size : " << imu_msgs.size() << ", img point number : " << img_msg->points.size()
+                      << std::endl;
+            LOG(INFO) << "imu msg front timestamp : " << std::fixed << imu_msgs.front()->header
+                      << ", back timestamp : " << imu_msgs.back()->header << std::endl;
+            LOG(INFO) << "img msg front timestamp : " << std::fixed << img_msg->header << std::endl;
             double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
-            for (auto& imu_msg : measurement.first)
+            for (const auto& imu_msg : imu_msgs)
             {
                 double t = imu_msg->header;
                 if (t <= img_t)
@@ -325,10 +333,6 @@ void System::ProcessBackEnd()
                                  << ", img timestamp : " << img_t << std::endl;
                 }
             }
-            // estimator_.processIMU(measurement.first);
-
-            // std::cout  << "processing vision data with stamp:" << img_msg->header
-            //     << " img_msg->points.size: "<< img_msg->points.size() << std::endl;
 
             // TicToc t_s;
             std::map<int, std::vector<std::pair<int, Eigen::Matrix<double, 7, 1>>>> image;
@@ -367,6 +371,8 @@ void System::ProcessBackEnd()
                           << std::endl;
             }
         }
+
+        LOG(INFO) << "ProcessBackEnd --- over process backend, cost : " << backend_timer.toc() << " ms.";
     }
 }
 
@@ -378,39 +384,39 @@ void System::Draw()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    s_cam_ = pangolin::OpenGlRenderState(pangolin::ProjectionMatrix(1024, 768, 500, 500, 512, 384, 0.1, 1000),
+    s_cam_ = pangolin::OpenGlRenderState(pangolin::ProjectionMatrix(1024, 768, 500, 500, 512, 384, 0.1, 100000),
                                          pangolin::ModelViewLookAt(-5, 0, 15, 7, 0, 0, 1.0, 0.0, 0.0));
 
     d_cam_ = pangolin::CreateDisplay()
-                 .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -1024.0f / 768.0f)
+                 .SetBounds(0.0, 1.0, 0.0, 1.0, -1024.0f / 768.0f)
                  .SetHandler(new pangolin::Handler3D(s_cam_));
 
     while (bStart_backend_)
     {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClearColor(1.0, 1.0, 1.0, 1.0);
 
         d_cam_.Activate(s_cam_);
-        glClearColor(0.75f, 0.75f, 0.75f, 0.75f);
+        glLineWidth(2);
         glColor3f(0, 0, 1);
         pangolin::glDrawAxis(3);
 
         // draw poses
         glColor3f(0, 0, 0);
-        glLineWidth(2);
-        glBegin(GL_LINES);
+        glPointSize(3);
+        glBegin(GL_POINTS);
         // TODO: @chengchangxi, this shared memory should be locked, this thread has data race with backend thread
         int nPath_size = vPath_to_draw_.size();
-        for (int i = 0; i < nPath_size - 1; ++i)
+        for (int i = 0; i < nPath_size; ++i)
         {
             glVertex3f(vPath_to_draw_[i].x(), vPath_to_draw_[i].y(), vPath_to_draw_[i].z());
-            glVertex3f(vPath_to_draw_[i + 1].x(), vPath_to_draw_[i + 1].y(), vPath_to_draw_[i + 1].z());
         }
         glEnd();
 
         // points
         if (estimator_.solver_flag_ == Estimator::SolverFlag::NON_LINEAR)
         {
-            glPointSize(5);
+            glPointSize(3);
             glBegin(GL_POINTS);
             for (int i = 0; i < WINDOW_SIZE + 1; ++i)
             {
