@@ -20,7 +20,7 @@ public:
     {
     }
 
-    virtual std::string TypeInfo() const
+    std::string TypeInfo() const override
     {
         return "VertexInverseDepth";
     }

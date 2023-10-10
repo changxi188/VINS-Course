@@ -23,7 +23,7 @@ public:
     {
     }
 
-    std::string TypeInfo() const
+    std::string TypeInfo() const override
     {
         return "VertexSpeedBias";
     }

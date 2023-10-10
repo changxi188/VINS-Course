@@ -212,7 +212,9 @@ void Estimator::processImage(const std::map<int, std::vector<std::pair<int, Eige
                 last_P0_ = Ps_[0];
             }
             else
+            {
                 slideWindow();
+            }
         }
         else
         {
@@ -223,22 +225,22 @@ void Estimator::processImage(const std::map<int, std::vector<std::pair<int, Eige
     {
         TicToc t_solve;
         solveOdometry();
-        // ROS_DEBUG("solver costs: %fms", t_solve.toc());
+        LOG(INFO) << "processImage --- solver costs: " << t_solve.toc() << " ms";
 
         if (failureDetection())
         {
-            // ROS_WARN("failure detection!");
+            LOG(ERROR) << "processImage --- failure detection!";
             failure_occur_ = 1;
             clearState();
             setParameter();
-            // ROS_WARN("system reboot!");
+            LOG(WARNING) << "processImage --- system reboot!";
             return;
         }
 
         TicToc t_margin;
         slideWindow();
         f_manager_.removeFailures();
-        // ROS_DEBUG("marginalization costs: %fms", t_margin.toc());
+        LOG(INFO) << "marginalization costs: " << t_margin.toc() << " ms";
         //  prepare output of VINS
         key_poses_.clear();
         for (int i = 0; i <= WINDOW_SIZE; i++)
@@ -277,10 +279,10 @@ bool Estimator::initialStructure()
             // cout << "frame g " << tmp_g.transpose() << endl;
         }
         var = sqrt(var / ((int)all_image_frame_.size() - 1));
-        LOG(INFO) << "IMU variation " << var;
+        LOG(INFO) << "initialStructure --- IMU variation " << var;
         if (var < 0.25)
         {
-            LOG(WARNING) << "IMU excitation not enouth!";
+            LOG(WARNING) << "initialStructure --- IMU excitation not enouth!";
             // return false;
         }
     }
@@ -531,12 +533,15 @@ bool Estimator::relativePose(Eigen::Matrix3d& relative_R, Eigen::Vector3d& relat
 void Estimator::solveOdometry()
 {
     if (frame_count_ < WINDOW_SIZE)
+    {
         return;
+    }
+
     if (solver_flag_ == NON_LINEAR)
     {
         TicToc t_tri;
         f_manager_.triangulate(Ps_, tic_, ric_);
-        // cout << "triangulation costs : " << t_tri.toc() << endl;
+        LOG(INFO) << "solveOdometry --- triangulation costs : " << t_tri.toc();
         backendOptimization();
     }
 }
@@ -580,9 +585,14 @@ void Estimator::vector2double()
 
     Eigen::VectorXd dep = f_manager_.getDepthVector();
     for (int i = 0; i < f_manager_.getFeatureCount(); i++)
+    {
         para_Feature_[i][0] = dep(i);
+    }
+
     if (ESTIMATE_TD)
+    {
         para_Td_[0][0] = td_;
+    }
 }
 
 void Estimator::double2vector()
@@ -853,6 +863,7 @@ void Estimator::MargOldFrame()
     errprior_   = problem.GetErrPrior();
     Jprior_inv_ = problem.GetJtPrior();
 }
+
 void Estimator::MargNewFrame()
 {
     // step1. 构建 problem
@@ -949,13 +960,13 @@ void Estimator::problemSolve()
 
         if (!ESTIMATE_EXTRINSIC)
         {
-            // ROS_DEBUG("fix extinsic param");
+            LOG(INFO) << "problemSolve --- fix extinsic param";
             //  TODO:: set Hessian prior to zero
             vertexExt->SetFixed();
         }
         else
         {
-            // ROS_DEBUG("estimate extinsic param");
+            LOG(INFO) << "problemSolve --- estimate extinsic param";
         }
         problem.AddVertex(vertexExt);
         pose_dim += vertexExt->LocalDimension();
@@ -982,13 +993,16 @@ void Estimator::problemSolve()
         problem.AddVertex(vertexVB);
         pose_dim += vertexVB->LocalDimension();
     }
+    LOG(INFO) << "problemSolve --- pose dim : " << pose_dim;
 
     // IMU
     for (int i = 0; i < WINDOW_SIZE; i++)
     {
         int j = i + 1;
         if (pre_integrations_[j]->sum_dt_ > 10.0)
+        {
             continue;
+        }
 
         std::shared_ptr<backend::EdgeImu>             imuEdge(new backend::EdgeImu(pre_integrations_[j]));
         std::vector<std::shared_ptr<backend::Vertex>> edge_vertex;
@@ -1112,7 +1126,7 @@ void Estimator::backendOptimization()
     problemSolve();
     // 优化后的变量处理下自由度
     double2vector();
-    // ROS_INFO("whole time for solver: %f", t_solver.toc());
+    LOG(INFO) << "backendOptimization --- whole time for solver: " << t_solver.toc();
 
     // 维护 marg
     TicToc t_whole_marginalization;
@@ -1128,8 +1142,12 @@ void Estimator::backendOptimization()
             addr_shift[reinterpret_cast<long>(para_Pose_[i])]      = para_Pose_[i - 1];
             addr_shift[reinterpret_cast<long>(para_SpeedBias_[i])] = para_SpeedBias_[i - 1];
         }
+
         for (int i = 0; i < NUM_OF_CAM; i++)
+        {
             addr_shift[reinterpret_cast<long>(para_Ex_Pose_[i])] = para_Ex_Pose_[i];
+        }
+
         if (ESTIMATE_TD)
         {
             addr_shift[reinterpret_cast<long>(para_Td_[0])] = para_Td_[0];
@@ -1137,34 +1155,39 @@ void Estimator::backendOptimization()
     }
     else
     {
-        if (Hprior_.rows() > 0)
+        if (Hprior_.rows() <= 0)
         {
-            vector2double();
+            return;
+        }
 
-            MargNewFrame();
+        vector2double();
 
-            std::unordered_map<long, double*> addr_shift;
-            for (int i = 0; i <= WINDOW_SIZE; i++)
+        MargNewFrame();
+
+        std::unordered_map<long, double*> addr_shift;
+        for (int i = 0; i <= WINDOW_SIZE; i++)
+        {
+            if (i == WINDOW_SIZE - 1)
+                continue;
+            else if (i == WINDOW_SIZE)
             {
-                if (i == WINDOW_SIZE - 1)
-                    continue;
-                else if (i == WINDOW_SIZE)
-                {
-                    addr_shift[reinterpret_cast<long>(para_Pose_[i])]      = para_Pose_[i - 1];
-                    addr_shift[reinterpret_cast<long>(para_SpeedBias_[i])] = para_SpeedBias_[i - 1];
-                }
-                else
-                {
-                    addr_shift[reinterpret_cast<long>(para_Pose_[i])]      = para_Pose_[i];
-                    addr_shift[reinterpret_cast<long>(para_SpeedBias_[i])] = para_SpeedBias_[i];
-                }
+                addr_shift[reinterpret_cast<long>(para_Pose_[i])]      = para_Pose_[i - 1];
+                addr_shift[reinterpret_cast<long>(para_SpeedBias_[i])] = para_SpeedBias_[i - 1];
             }
-            for (int i = 0; i < NUM_OF_CAM; i++)
-                addr_shift[reinterpret_cast<long>(para_Ex_Pose_[i])] = para_Ex_Pose_[i];
-            if (ESTIMATE_TD)
+            else
             {
-                addr_shift[reinterpret_cast<long>(para_Td_[0])] = para_Td_[0];
+                addr_shift[reinterpret_cast<long>(para_Pose_[i])]      = para_Pose_[i];
+                addr_shift[reinterpret_cast<long>(para_SpeedBias_[i])] = para_SpeedBias_[i];
             }
+        }
+
+        for (int i = 0; i < NUM_OF_CAM; i++)
+        {
+            addr_shift[reinterpret_cast<long>(para_Ex_Pose_[i])] = para_Ex_Pose_[i];
+        }
+        if (ESTIMATE_TD)
+        {
+            addr_shift[reinterpret_cast<long>(para_Td_[0])] = para_Td_[0];
         }
     }
 }
@@ -1175,33 +1198,32 @@ void Estimator::slideWindow()
     if (marginalization_flag_ == MARGIN_OLD)
     {
         double t_0 = Headers_[0];
-        back_R0_   = Rs_[0];
         back_P0_   = Ps_[0];
+        back_R0_   = Rs_[0];
         for (int i = 0; i < WINDOW_SIZE; i++)
         {
+            Headers_[i] = Headers_[i + 1];
+            Ps_[i].swap(Ps_[i + 1]);
             Rs_[i].swap(Rs_[i + 1]);
+            Vs_[i].swap(Vs_[i + 1]);
+            Bas_[i].swap(Bas_[i + 1]);
+            Bgs_[i].swap(Bgs_[i + 1]);
 
             std::swap(pre_integrations_[i], pre_integrations_[i + 1]);
 
             dt_buf_[i].swap(dt_buf_[i + 1]);
             linear_acceleration_buf_[i].swap(linear_acceleration_buf_[i + 1]);
             angular_velocity_buf_[i].swap(angular_velocity_buf_[i + 1]);
-
-            Headers_[i] = Headers_[i + 1];
-            Ps_[i].swap(Ps_[i + 1]);
-            Vs_[i].swap(Vs_[i + 1]);
-            Bas_[i].swap(Bas_[i + 1]);
-            Bgs_[i].swap(Bgs_[i + 1]);
         }
         Headers_[WINDOW_SIZE] = Headers_[WINDOW_SIZE - 1];
         Ps_[WINDOW_SIZE]      = Ps_[WINDOW_SIZE - 1];
-        Vs_[WINDOW_SIZE]      = Vs_[WINDOW_SIZE - 1];
         Rs_[WINDOW_SIZE]      = Rs_[WINDOW_SIZE - 1];
+        Vs_[WINDOW_SIZE]      = Vs_[WINDOW_SIZE - 1];
         Bas_[WINDOW_SIZE]     = Bas_[WINDOW_SIZE - 1];
         Bgs_[WINDOW_SIZE]     = Bgs_[WINDOW_SIZE - 1];
 
         delete pre_integrations_[WINDOW_SIZE];
-        pre_integrations_[WINDOW_SIZE] = new IntegrationBase{acc_0_, gyr_0_, Bas_[WINDOW_SIZE], Bgs_[WINDOW_SIZE]};
+        pre_integrations_[WINDOW_SIZE] = new IntegrationBase(acc_0_, gyr_0_, Bas_[WINDOW_SIZE], Bgs_[WINDOW_SIZE]);
 
         dt_buf_[WINDOW_SIZE].clear();
         linear_acceleration_buf_[WINDOW_SIZE].clear();
@@ -1215,7 +1237,10 @@ void Estimator::slideWindow()
         for (std::map<double, ImageFrame>::iterator it = all_image_frame_.begin(); it != it_0; ++it)
         {
             if (it->second.pre_integration)
+            {
                 delete it->second.pre_integration;
+            }
+
             it->second.pre_integration = NULL;
         }
 
@@ -1240,8 +1265,8 @@ void Estimator::slideWindow()
 
         Headers_[frame_count_ - 1] = Headers_[frame_count_];
         Ps_[frame_count_ - 1]      = Ps_[frame_count_];
-        Vs_[frame_count_ - 1]      = Vs_[frame_count_];
         Rs_[frame_count_ - 1]      = Rs_[frame_count_];
+        Vs_[frame_count_ - 1]      = Vs_[frame_count_];
         Bas_[frame_count_ - 1]     = Bas_[frame_count_];
         Bgs_[frame_count_ - 1]     = Bgs_[frame_count_];
 

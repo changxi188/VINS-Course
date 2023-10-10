@@ -7,6 +7,7 @@
 
 #include "edge.h"
 #include "eigen_types.h"
+#include "parameters.h"
 #include "vertex.h"
 
 typedef unsigned long ulong;
@@ -181,7 +182,7 @@ private:
     double currentLambda_;
     double currentChi_;
     double stopThresholdLM_;  // LM 迭代退出阈值条件
-    double ni_;               //控制 Lambda 缩放大小
+    double ni_;               // 控制 Lambda 缩放大小
 
     ProblemType problemType_;
 

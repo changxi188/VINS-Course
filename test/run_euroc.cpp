@@ -14,7 +14,7 @@
 
 #include "System.h"
 
-const int   nDelayTimes  = 1;
+const int   nDelayTimes  = 3;
 std::string sData_path   = "/media/cheng/holo1/rosbag/MH_05_difficult/mav0/";
 std::string sConfig_path = "../config/";
 

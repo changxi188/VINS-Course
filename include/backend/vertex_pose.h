@@ -29,7 +29,7 @@ public:
     /// 默认是向量加
     virtual void Plus(const VecX& delta) override;
 
-    std::string TypeInfo() const
+    std::string TypeInfo() const override
     {
         return "VertexPose";
     }

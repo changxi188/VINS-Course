@@ -1,8 +1,8 @@
-#include "backend/problem.h"
 #include <eigen3/Eigen/Dense>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include "backend/problem.h"
 #include "utility/tic_toc.h"
 
 #ifdef USE_OPENMP
@@ -26,9 +26,7 @@ namespace backend
 {
 void Problem::LogoutVectorSize()
 {
-    // LOG(INFO) <<
-    //           "1 problem::LogoutVectorSize verticies_:" << verticies_.size() <<
-    //           " edges:" << edges_.size();
+    LOG(INFO) << "1 problem::LogoutVectorSize verticies_:" << verticies_.size() << " edges:" << edges_.size();
 }
 
 Problem::Problem(ProblemType problemType) : problemType_(problemType)
@@ -342,9 +340,9 @@ void Problem::MakeHessian()
     VecX  b(VecX::Zero(size));
 
     // TODO:: accelate, accelate, accelate
-    //#ifdef USE_OPENMP
-    //#pragma omp parallel for
-    //#endif
+    // #ifdef USE_OPENMP
+    // #pragma omp parallel for
+    // #endif
     for (auto& edge : edges_)
     {
         edge.second->ComputeResidual();

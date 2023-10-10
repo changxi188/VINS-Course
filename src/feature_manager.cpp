@@ -53,7 +53,7 @@ bool FeatureManager::addFeatureCheckParallax(
 
         int  feature_id = id_pts.first;
         auto it         = find_if(feature_.begin(), feature_.end(),
-                          [feature_id](const FeaturePerId& it) { return it.feature_id == feature_id; });
+                                  [feature_id](const FeaturePerId& it) { return it.feature_id == feature_id; });
 
         if (it == feature_.end())
         {
@@ -220,11 +220,8 @@ void FeatureManager::triangulate(Eigen::Vector3d Ps[], Eigen::Vector3d tic[], Ei
         Eigen::MatrixXd svd_A(2 * it_per_id.feature_per_frame.size(), 4);
         int             svd_idx = 0;
 
-        Eigen::Matrix<double, 3, 4> P0;
-        Eigen::Vector3d             t0 = Ps[imu_i] + Rs_[imu_i] * tic[0];
-        Eigen::Matrix3d             R0 = Rs_[imu_i] * ric_[0];
-        P0.leftCols<3>()               = Eigen::Matrix3d::Identity();
-        P0.rightCols<1>()              = Eigen::Vector3d::Zero();
+        Eigen::Vector3d t0 = Ps[imu_i] + Rs_[imu_i] * tic[0];
+        Eigen::Matrix3d R0 = Rs_[imu_i] * ric_[0];
 
         for (auto& it_per_frame : it_per_id.feature_per_frame)
         {
@@ -262,11 +259,9 @@ void FeatureManager::removeOutlier()
 {
     // ROS_BREAK();
     return;
-    int i = -1;
     for (auto it = feature_.begin(), it_next = feature_.begin(); it != feature_.end(); it = it_next)
     {
         it_next++;
-        i += it->used_num != 0;
         if (it->used_num != 0 && it->is_outlier == true)
         {
             feature_.erase(it);
@@ -282,7 +277,9 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
         it_next++;
 
         if (it->start_frame != 0)
+        {
             it->start_frame--;
+        }
         else
         {
             Eigen::Vector3d uv_i = it->feature_per_frame[0].point;
@@ -299,9 +296,13 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                 Eigen::Vector3d pts_j   = new_R.transpose() * (w_pts_i - new_P);
                 double          dep_j   = pts_j(2);
                 if (dep_j > 0)
+                {
                     it->estimated_depth = dep_j;
+                }
                 else
+                {
                     it->estimated_depth = INIT_DEPTH;
+                }
             }
         }
         // remove tracking-lost feature_ after marginalize
@@ -321,12 +322,16 @@ void FeatureManager::removeBack()
         it_next++;
 
         if (it->start_frame != 0)
+        {
             it->start_frame--;
+        }
         else
         {
             it->feature_per_frame.erase(it->feature_per_frame.begin());
             if (it->feature_per_frame.size() == 0)
+            {
                 feature_.erase(it);
+            }
         }
     }
 }
@@ -345,10 +350,15 @@ void FeatureManager::removeFront(int frame_count)
         {
             int j = WINDOW_SIZE - 1 - it->start_frame;
             if (it->endFrame() < frame_count - 1)
+            {
                 continue;
+            }
+
             it->feature_per_frame.erase(it->feature_per_frame.begin() + j);
             if (it->feature_per_frame.size() == 0)
+            {
                 feature_.erase(it);
+            }
         }
     }
 }
