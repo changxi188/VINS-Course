@@ -310,18 +310,19 @@ bool Estimator::initialStructure()
     int             l;
     if (!relativePose(relative_R, relative_T, l))
     {
-        LOG(WARNING) << "initialStructure --- Not enough features or parallax; Move device around";
+        LOG(WARNING)
+            << "initialStructure --- Not enough features or parallax, can't solve relative pose; Move device around";
         return false;
     }
     GlobalSFM sfm;
-    if (!sfm.construct(frame_count_ + 1, Q, T, l, relative_R, relative_T, sfm_f, sfm_tracked_points))
+    if (!sfm.construct(frame_count_ + 1, l, relative_R, relative_T, Q, T, sfm_f, sfm_tracked_points))
     {
         LOG(WARNING) << "initialStructure --- global SFM failed!";
         marginalization_flag_ = MARGIN_OLD;
         return false;
     }
 
-    // solve pnp for all frame
+    // solve pnp for all frame, all_image_frame_'s poses are T_wi
     std::map<double, ImageFrame>::iterator   frame_it;
     std::map<int, Eigen::Vector3d>::iterator it;
     frame_it = all_image_frame_.begin();
@@ -350,21 +351,26 @@ bool Estimator::initialStructure()
         frame_it->second.is_key_frame = false;
         std::vector<cv::Point3f> pts_3_vector;
         std::vector<cv::Point2f> pts_2_vector;
+
+        // std::map<int, std::vector<std::pair<int, Eigen::Matrix<double, 7, 1>>>> points;
         for (auto& id_pts : frame_it->second.points)
         {
             int feature_id = id_pts.first;
+
+            it = sfm_tracked_points.find(feature_id);
+            if (it == sfm_tracked_points.end())
+            {
+                continue;
+            }
+
             for (auto& i_p : id_pts.second)
             {
-                it = sfm_tracked_points.find(feature_id);
-                if (it != sfm_tracked_points.end())
-                {
-                    Eigen::Vector3d world_pts = it->second;
-                    cv::Point3f     pts_3(world_pts(0), world_pts(1), world_pts(2));
-                    pts_3_vector.push_back(pts_3);
-                    Eigen::Vector2d img_pts = i_p.second.head<2>();
-                    cv::Point2f     pts_2(img_pts(0), img_pts(1));
-                    pts_2_vector.push_back(pts_2);
-                }
+                Eigen::Vector3d world_pts = it->second;
+                cv::Point3f     pts_3(world_pts(0), world_pts(1), world_pts(2));
+                pts_3_vector.push_back(pts_3);
+                Eigen::Vector2d img_pts = i_p.second.head<2>();
+                cv::Point2f     pts_2(img_pts(0), img_pts(1));
+                pts_2_vector.push_back(pts_2);
             }
         }
         cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
@@ -391,6 +397,7 @@ bool Estimator::initialStructure()
     }
     if (visualInitialAlign())
     {
+        LOG(INFO) << "initialStructure --- align visual structure with IMU";
         return true;
     }
     else
@@ -408,7 +415,7 @@ bool Estimator::visualInitialAlign()
     bool result = VisualIMUAlignment(all_image_frame_, Bgs_, g_, x);
     if (!result)
     {
-        // ROS_DEBUG("solve g failed!");
+        LOG(INFO) << "visualInitialAlign --- solve g failed!";
         return false;
     }
 
@@ -424,13 +431,18 @@ bool Estimator::visualInitialAlign()
 
     Eigen::VectorXd dep = f_manager_.getDepthVector();
     for (int i = 0; i < dep.size(); i++)
+    {
         dep[i] = -1;
+    }
     f_manager_.clearDepth(dep);
 
     // triangulat on cam pose , no tic_
     Eigen::Vector3d TIC_TMP[NUM_OF_CAM];
     for (int i = 0; i < NUM_OF_CAM; i++)
+    {
         TIC_TMP[i].setZero();
+    }
+
     ric_[0] = RIC[0];
     f_manager_.setRic(ric_);
     f_manager_.triangulate(Ps_, &(TIC_TMP[0]), &(RIC[0]));
@@ -440,8 +452,11 @@ bool Estimator::visualInitialAlign()
     {
         pre_integrations_[i]->repropagate(Eigen::Vector3d::Zero(), Bgs_[i]);
     }
+
     for (int i = frame_count_; i >= 0; i--)
+    {
         Ps_[i] = s * Ps_[i] - Rs_[i] * TIC[0] - (s * Ps_[0] - Rs_[0] * TIC[0]);
+    }
     int                                    kv = -1;
     std::map<double, ImageFrame>::iterator frame_i;
     for (frame_i = all_image_frame_.begin(); frame_i != all_image_frame_.end(); frame_i++)
@@ -456,7 +471,9 @@ bool Estimator::visualInitialAlign()
     {
         it_per_id.used_num = it_per_id.feature_per_frame.size();
         if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+        {
             continue;
+        }
         it_per_id.estimated_depth *= s;
     }
 
@@ -465,6 +482,7 @@ bool Estimator::visualInitialAlign()
     R0                  = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
     g_                  = R0 * g_;
     // Matrix3d rot_diff = R0 * Rs_[0].transpose();
+    // R0 is from ? to ?
     Eigen::Matrix3d rot_diff = R0;
     for (int i = 0; i <= frame_count_; i++)
     {
@@ -472,8 +490,8 @@ bool Estimator::visualInitialAlign()
         Rs_[i] = rot_diff * Rs_[i];
         Vs_[i] = rot_diff * Vs_[i];
     }
-    // ROS_DEBUG_STREAM("g0     " << g.transpose());
-    // ROS_DEBUG_STREAM("my R0  " << Utility::R2ypr(Rs_[0]).transpose());
+    LOG(INFO) << "g0     " << g_.transpose();
+    LOG(INFO) << "my R0  " << Utility::R2ypr(Rs_[0]).transpose();
 
     return true;
 }

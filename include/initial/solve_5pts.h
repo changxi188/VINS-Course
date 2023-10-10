@@ -2,12 +2,9 @@
 
 #include <vector>
 
-#include <opencv2/opencv.hpp>
-// #include <opencv2/core/eigen.hpp>
 #include <glog/logging.h>
 #include <eigen3/Eigen/Dense>
-
-// #include <ros/console.h>
+#include <opencv2/opencv.hpp>
 
 class MotionEstimator
 {

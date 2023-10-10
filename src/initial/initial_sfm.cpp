@@ -4,8 +4,9 @@ GlobalSFM::GlobalSFM()
 {
 }
 
-void GlobalSFM::triangulatePoint(Eigen::Matrix<double, 3, 4>& Pose0, Eigen::Matrix<double, 3, 4>& Pose1,
-                                 Eigen::Vector2d& point0, Eigen::Vector2d& point1, Eigen::Vector3d& point_3d)
+void GlobalSFM::triangulatePoint(const Eigen::Matrix<double, 3, 4>& Pose0, const Eigen::Matrix<double, 3, 4>& Pose1,
+                                 const Eigen::Vector2d& point0, const Eigen::Vector2d& point1,
+                                 Eigen::Vector3d& point_3d)
 {
     Eigen::Matrix4d design_matrix = Eigen::Matrix4d::Zero();
     design_matrix.row(0)          = point0[0] * Pose0.row(2) - Pose0.row(0);
@@ -19,15 +20,18 @@ void GlobalSFM::triangulatePoint(Eigen::Matrix<double, 3, 4>& Pose0, Eigen::Matr
     point_3d(2)        = triangulated_point(2) / triangulated_point(3);
 }
 
-bool GlobalSFM::solveFrameByPnP(Eigen::Matrix3d& R_initial, Eigen::Vector3d& P_initial, int i,
-                                std::vector<SFMFeature>& sfm_f)
+bool GlobalSFM::solveFrameByPnP(const int i, const std::vector<SFMFeature>& sfm_f, Eigen::Matrix3d& R_initial,
+                                Eigen::Vector3d& P_initial)
 {
     std::vector<cv::Point2f> pts_2_vector;
     std::vector<cv::Point3f> pts_3_vector;
-    for (int j = 0; j < feature_num; j++)
+    for (int j = 0; j < feature_num_; j++)
     {
         if (sfm_f[j].state != true)
+        {
             continue;
+        }
+
         Eigen::Vector2d point2d;
         for (int k = 0; k < (int)sfm_f[j].observation.size(); k++)
         {
@@ -44,9 +48,11 @@ bool GlobalSFM::solveFrameByPnP(Eigen::Matrix3d& R_initial, Eigen::Vector3d& P_i
     }
     if (int(pts_2_vector.size()) < 15)
     {
-        printf("unstable features tracking, please slowly move you device!\n");
+        LOG(WARNING) << "unstable features tracking, please slowly move you device!";
         if (int(pts_2_vector.size()) < 10)
+        {
             return false;
+        }
     }
     cv::Mat r, rvec, t, D, tmp_r;
     cv::eigen2cv(R_initial, tmp_r);
@@ -70,14 +76,17 @@ bool GlobalSFM::solveFrameByPnP(Eigen::Matrix3d& R_initial, Eigen::Vector3d& P_i
     return true;
 }
 
-void GlobalSFM::triangulateTwoFrames(int frame0, Eigen::Matrix<double, 3, 4>& Pose0, int frame1,
-                                     Eigen::Matrix<double, 3, 4>& Pose1, std::vector<SFMFeature>& sfm_f)
+void GlobalSFM::triangulateTwoFrames(const int frame0, const Eigen::Matrix<double, 3, 4>& Pose0, const int frame1,
+                                     const Eigen::Matrix<double, 3, 4>& Pose1, std::vector<SFMFeature>& sfm_f)
 {
     assert(frame0 != frame1);
-    for (int j = 0; j < feature_num; j++)
+    for (int j = 0; j < feature_num_; j++)
     {
         if (sfm_f[j].state == true)
+        {
             continue;
+        }
+
         bool            has_0 = false, has_1 = false;
         Eigen::Vector2d point0;
         Eigen::Vector2d point1;
@@ -107,30 +116,31 @@ void GlobalSFM::triangulateTwoFrames(int frame0, Eigen::Matrix<double, 3, 4>& Po
     }
 }
 
-// 	 q w_R_cam t w_R_cam
+// 	 Q w_R_cam t w_R_cam
 //  c_rotation cam_R_w
 //  c_translation cam_R_w
 // relative_q[i][j]  j_q_i
 // relative_t[i][j]  j_t_ji  (j < i)
-bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d* T, int l,
-                          const Eigen::Matrix3d relative_R, const Eigen::Vector3d relative_T,
+bool GlobalSFM::construct(const int frame_num, const int l, const Eigen::Matrix3d relative_R,
+                          const Eigen::Vector3d relative_T, Eigen::Quaterniond* Q, Eigen::Vector3d* T,
                           std::vector<SFMFeature>& sfm_f, std::map<int, Eigen::Vector3d>& sfm_tracked_points)
 {
-    feature_num = sfm_f.size();
+    feature_num_ = sfm_f.size();
     // cout << "set 0 and " << l << " as known " << endl;
     //  have relative_r relative_t
     //  intial two view
-    q[l].w() = 1;
-    q[l].x() = 0;
-    q[l].y() = 0;
-    q[l].z() = 0;
+    Q[l].w() = 1;
+    Q[l].x() = 0;
+    Q[l].y() = 0;
+    Q[l].z() = 0;
     T[l].setZero();
-    q[frame_num - 1] = q[l] * Eigen::Quaterniond(relative_R);
+    Q[frame_num - 1] = Q[l] * Eigen::Quaterniond(relative_R);
     T[frame_num - 1] = relative_T;
-    // cout << "init q_l " << q[l].w() << " " << q[l].vec().transpose() << endl;
+    // cout << "init q_l " << Q[l].w() << " " << Q[l].vec().transpose() << endl;
     // cout << "init t_l " << T[l].transpose() << endl;
 
     // rotate to cam frame
+    // compute inverse to get T_cw, orginal is T_wc
     Eigen::Matrix3d             c_Rotation[frame_num];
     Eigen::Vector3d             c_Translation[frame_num];
     Eigen::Quaterniond          c_Quat[frame_num];
@@ -138,13 +148,13 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
     double                      c_translation[frame_num][3];
     Eigen::Matrix<double, 3, 4> Pose[frame_num];
 
-    c_Quat[l]                 = q[l].inverse();
+    c_Quat[l]                 = Q[l].inverse();
     c_Rotation[l]             = c_Quat[l].toRotationMatrix();
     c_Translation[l]          = -1 * (c_Rotation[l] * T[l]);
     Pose[l].block<3, 3>(0, 0) = c_Rotation[l];
     Pose[l].block<3, 1>(0, 3) = c_Translation[l];
 
-    c_Quat[frame_num - 1]                 = q[frame_num - 1].inverse();
+    c_Quat[frame_num - 1]                 = Q[frame_num - 1].inverse();
     c_Rotation[frame_num - 1]             = c_Quat[frame_num - 1].toRotationMatrix();
     c_Translation[frame_num - 1]          = -1 * (c_Rotation[frame_num - 1] * T[frame_num - 1]);
     Pose[frame_num - 1].block<3, 3>(0, 0) = c_Rotation[frame_num - 1];
@@ -159,8 +169,11 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
         {
             Eigen::Matrix3d R_initial = c_Rotation[i - 1];
             Eigen::Vector3d P_initial = c_Translation[i - 1];
-            if (!solveFrameByPnP(R_initial, P_initial, i, sfm_f))
+            if (!solveFrameByPnP(i, sfm_f, R_initial, P_initial))
+            {
+                LOG(WARNING) << "GlobalSFM --- l frame is " << l << ", frame " << i << " pnp compute false";
                 return false;
+            }
             c_Rotation[i]             = R_initial;
             c_Translation[i]          = P_initial;
             c_Quat[i]                 = c_Rotation[i];
@@ -173,7 +186,10 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
     }
     // 3: triangulate l-----l+1 l+2 ... frame_num -2
     for (int i = l + 1; i < frame_num - 1; i++)
+    {
         triangulateTwoFrames(l, Pose[l], i, Pose[i], sfm_f);
+    }
+
     // 4: solve pnp l-1; triangulate l-1 ----- l
     //              l-2              l-2 ----- l
     for (int i = l - 1; i >= 0; i--)
@@ -181,8 +197,11 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
         // solve pnp
         Eigen::Matrix3d R_initial = c_Rotation[i + 1];
         Eigen::Vector3d P_initial = c_Translation[i + 1];
-        if (!solveFrameByPnP(R_initial, P_initial, i, sfm_f))
+        if (!solveFrameByPnP(i, sfm_f, R_initial, P_initial))
+        {
+            LOG(WARNING) << "GlobalSFM --- l frame is " << l << ", frame " << i << " pnp compute false";
             return false;
+        }
         c_Rotation[i]             = R_initial;
         c_Translation[i]          = P_initial;
         c_Quat[i]                 = c_Rotation[i];
@@ -191,12 +210,16 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
         // triangulate
         triangulateTwoFrames(i, Pose[i], l, Pose[l], sfm_f);
     }
+
     // 5: triangulate all other points
-    for (int j = 0; j < feature_num; j++)
+    for (int j = 0; j < feature_num_; j++)
     {
         if (sfm_f[j].state == true)
+        {
             continue;
-        if ((int)sfm_f[j].observation.size() >= 2)
+        }
+
+        if (sfm_f[j].observation.size() >= 2)
         {
             Eigen::Vector2d point0, point1;
             int             frame_0 = sfm_f[j].observation[0].first;
@@ -217,13 +240,13 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
     /*
         for (int i = 0; i < frame_num; i++)
         {
-            q[i] = c_Rotation[i].transpose();
-            cout << "solvePnP  q" << " i " << i <<"  " <<q[i].w() << "  " << q[i].vec().transpose() << endl;
+            Q[i] = c_Rotation[i].transpose();
+            cout << "solvePnP  Q" << " i " << i <<"  " <<Q[i].w() << "  " << Q[i].vec().transpose() << endl;
         }
         for (int i = 0; i < frame_num; i++)
         {
             Vector3d t_tmp;
-            t_tmp = -1 * (q[i] * c_Translation[i]);
+            t_tmp = -1 * (Q[i] * c_Translation[i]);
             cout << "solvePnP  t" << " i " << i <<"  " << t_tmp.x() <<"  "<< t_tmp.y() <<"  "<< t_tmp.z() << endl;
         }
     */
@@ -253,7 +276,7 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
         }
     }
 
-    for (int i = 0; i < feature_num; i++)
+    for (int i = 0; i < feature_num_; i++)
     {
         if (sfm_f[i].state != true)
             continue;
@@ -267,12 +290,12 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
         }
     }
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    // options.minimizer_progress_to_stdout = true;
-    options.max_solver_time_in_seconds = 0.2;
+    options.linear_solver_type           = ceres::DENSE_SCHUR;
+    options.minimizer_progress_to_stdout = true;
+    options.max_solver_time_in_seconds   = 0.2;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    // std::cout << summary.BriefReport() << "\n";
+    LOG(INFO) << summary.BriefReport() << "\n";
     if (summary.termination_type == ceres::CONVERGENCE || summary.final_cost < 5e-03)
     {
         LOG(INFO) << "GlobalSFM --- vision only BA converge";
@@ -284,23 +307,26 @@ bool GlobalSFM::construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d*
     }
     for (int i = 0; i < frame_num; i++)
     {
-        q[i].w() = c_rotation[i][0];
-        q[i].x() = c_rotation[i][1];
-        q[i].y() = c_rotation[i][2];
-        q[i].z() = c_rotation[i][3];
-        q[i]     = q[i].inverse();
-        // cout << "final  q" << " i " << i <<"  " <<q[i].w() << "  " << q[i].vec().transpose() << endl;
+        Q[i].w() = c_rotation[i][0];
+        Q[i].x() = c_rotation[i][1];
+        Q[i].y() = c_rotation[i][2];
+        Q[i].z() = c_rotation[i][3];
+        Q[i]     = Q[i].inverse();
+        // cout << "final  Q" << " i " << i <<"  " <<Q[i].w() << "  " << Q[i].vec().transpose() << endl;
     }
     for (int i = 0; i < frame_num; i++)
     {
-        T[i] = -1 * (q[i] * Eigen::Vector3d(c_translation[i][0], c_translation[i][1], c_translation[i][2]));
+        T[i] = -1 * (Q[i] * Eigen::Vector3d(c_translation[i][0], c_translation[i][1], c_translation[i][2]));
         // cout << "final  t" << " i " << i <<"  " << T[i](0) <<"  "<< T[i](1) <<"  "<< T[i](2) << endl;
     }
     for (int i = 0; i < (int)sfm_f.size(); i++)
     {
-        if (sfm_f[i].state)
-            sfm_tracked_points[sfm_f[i].id] =
-                Eigen::Vector3d(sfm_f[i].position[0], sfm_f[i].position[1], sfm_f[i].position[2]);
+        if (!sfm_f[i].state)
+        {
+            continue;
+        }
+        sfm_tracked_points[sfm_f[i].id] =
+            Eigen::Vector3d(sfm_f[i].position[0], sfm_f[i].position[1], sfm_f[i].position[2]);
     }
     return true;
 }

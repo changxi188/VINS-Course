@@ -53,17 +53,18 @@ class GlobalSFM
 {
 public:
     GlobalSFM();
-    bool construct(int frame_num, Eigen::Quaterniond* q, Eigen::Vector3d* T, int l, const Eigen::Matrix3d relative_R,
-                   const Eigen::Vector3d relative_T, std::vector<SFMFeature>& sfm_f,
+    bool construct(const int frame_num, const int l, const Eigen::Matrix3d relative_R, const Eigen::Vector3d relative_T,
+                   Eigen::Quaterniond* Q, Eigen::Vector3d* T, std::vector<SFMFeature>& sfm_f,
                    std::map<int, Eigen::Vector3d>& sfm_tracked_points);
 
 private:
-    bool solveFrameByPnP(Eigen::Matrix3d& R_initial, Eigen::Vector3d& P_initial, int i, std::vector<SFMFeature>& sfm_f);
+    bool solveFrameByPnP(const int i, const std::vector<SFMFeature>& sfm_f, Eigen::Matrix3d& R_initial,
+                         Eigen::Vector3d& P_initial);
 
-    void triangulatePoint(Eigen::Matrix<double, 3, 4>& Pose0, Eigen::Matrix<double, 3, 4>& Pose1,
-                          Eigen::Vector2d& point0, Eigen::Vector2d& point1, Eigen::Vector3d& point_3d);
-    void triangulateTwoFrames(int frame0, Eigen::Matrix<double, 3, 4>& Pose0, int frame1,
-                              Eigen::Matrix<double, 3, 4>& Pose1, std::vector<SFMFeature>& sfm_f);
+    void triangulatePoint(const Eigen::Matrix<double, 3, 4>& Pose0, const Eigen::Matrix<double, 3, 4>& Pose1,
+                          const Eigen::Vector2d& point0, const Eigen::Vector2d& point1, Eigen::Vector3d& point_3d);
+    void triangulateTwoFrames(const int frame0, const Eigen::Matrix<double, 3, 4>& Pose0, const int frame1,
+                              const Eigen::Matrix<double, 3, 4>& Pose1, std::vector<SFMFeature>& sfm_f);
 
-    int feature_num;
+    int feature_num_;
 };

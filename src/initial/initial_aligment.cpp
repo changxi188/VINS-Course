@@ -23,10 +23,12 @@ void solveGyroscopeBias(std::map<double, ImageFrame>& all_image_frame, Eigen::Ve
         b += tmp_A.transpose() * tmp_b;
     }
     delta_bg = A.ldlt().solve(b);
-    // ROS_WARN_STREAM("gyroscope bias initial calibration " << delta_bg.transpose());
+    LOG(INFO) << "solveGyroscopeBias --- gyroscope bias initial calibration " << delta_bg.transpose();
 
     for (int i = 0; i <= WINDOW_SIZE; i++)
+    {
         Bgs[i] += delta_bg;
+    }
 
     for (frame_i = all_image_frame.begin(); next(frame_i) != all_image_frame.end(); frame_i++)
     {
@@ -178,9 +180,9 @@ bool LinearAlignment(std::map<double, ImageFrame>& all_image_frame, Eigen::Vecto
     b        = b * 1000.0;
     x        = A.ldlt().solve(b);
     double s = x(n_state - 1) / 100.0;
-    // ROS_DEBUG("estimated scale: %f", s);
+    LOG(INFO) << "LinearAlignment --- estimated scale: " << s;
     g = x.segment<3>(n_state - 4);
-    // ROS_DEBUG_STREAM(" result g     " << g.norm() << " " << g.transpose());
+    LOG(INFO) << "LinearAlignment --- result g norm : " << g.norm() << ", g : " << g.transpose();
     if (fabs(g.norm() - G.norm()) > 1.0 || s < 0)
     {
         return false;
@@ -189,11 +191,16 @@ bool LinearAlignment(std::map<double, ImageFrame>& all_image_frame, Eigen::Vecto
     RefineGravity(all_image_frame, g, x);
     s                = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s;
-    // ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
+    LOG(INFO) << "LinearAlignment --- refine g norm : " << g.norm() << ", g : " << g.transpose();
+
     if (s < 0.0)
+    {
         return false;
+    }
     else
+    {
         return true;
+    }
 }
 
 bool VisualIMUAlignment(std::map<double, ImageFrame>& all_image_frame, Eigen::Vector3d* Bgs, Eigen::Vector3d& g,
@@ -202,7 +209,11 @@ bool VisualIMUAlignment(std::map<double, ImageFrame>& all_image_frame, Eigen::Ve
     solveGyroscopeBias(all_image_frame, Bgs);
 
     if (LinearAlignment(all_image_frame, g, x))
+    {
         return true;
+    }
     else
+    {
         return false;
+    }
 }

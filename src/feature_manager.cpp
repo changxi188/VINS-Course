@@ -53,7 +53,7 @@ bool FeatureManager::addFeatureCheckParallax(
 
         int  feature_id = id_pts.first;
         auto it         = find_if(feature_.begin(), feature_.end(),
-                                  [feature_id](const FeaturePerId& it) { return it.feature_id == feature_id; });
+                          [feature_id](const FeaturePerId& it) { return it.feature_id == feature_id; });
 
         if (it == feature_.end())
         {
@@ -192,7 +192,9 @@ Eigen::VectorXd FeatureManager::getDepthVector()
     {
         it_per_id.used_num = it_per_id.feature_per_frame.size();
         if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+        {
             continue;
+        }
 #if 1
         dep_vec(++feature_index) = 1. / it_per_id.estimated_depth;
 #else
@@ -238,10 +240,8 @@ void FeatureManager::triangulate(Eigen::Vector3d Ps[], Eigen::Vector3d tic[], Ei
             Eigen::Vector3d f    = it_per_frame.point.normalized();
             svd_A.row(svd_idx++) = f[0] * P.row(2) - f[2] * P.row(0);
             svd_A.row(svd_idx++) = f[1] * P.row(2) - f[2] * P.row(1);
-
-            if (imu_i == imu_j)
-                continue;
         }
+
         assert(svd_idx == svd_A.rows());
         Eigen::Vector4d svd_V = Eigen::JacobiSVD<Eigen::MatrixXd>(svd_A, Eigen::ComputeThinV).matrixV().rightCols<1>();
         double          svd_method = svd_V[2] / svd_V[3];

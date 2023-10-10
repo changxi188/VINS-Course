@@ -20,6 +20,7 @@ public:
         points = _points;
     }
 
+    // landmark id to multi camera feature
     std::map<int, std::vector<std::pair<int, Eigen::Matrix<double, 7, 1>>>> points;
     double                                                                  t;  // timestamp
     Eigen::Matrix3d                                                         R;
