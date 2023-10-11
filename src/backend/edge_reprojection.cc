@@ -1,5 +1,5 @@
-#include "backend/edge_reprojection.h"
 #include "../thirdparty/Sophus/sophus/se3.hpp"
+#include "backend/edge_reprojection.h"
 #include "backend/vertex_pose.h"
 #include "utility/utility.h"
 
@@ -9,14 +9,12 @@ namespace myslam
 {
 namespace backend
 {
-
 /*    std::vector<std::shared_ptr<Vertex>> verticies_; // 该边对应的顶点
     VecX residual_;                 // 残差
     std::vector<MatXX> jacobians_;  // 雅可比，每个雅可比维度是 residual x vertex[i]
     MatXX information_;             // 信息矩阵
     VecX observation_;              // 观测信息
     */
-
 void EdgeReprojection::ComputeResidual()
 {
     //    std::cout << pts_i_.transpose() <<" "<<pts_j_.transpose()  <<std::endl;
@@ -51,7 +49,6 @@ void EdgeReprojection::ComputeResidual()
 //     qic = qic_;
 //     tic = tic_;
 // }
-
 void EdgeReprojection::ComputeJacobians()
 {
     double inv_dep_i = verticies_[0]->Parameters()[0];

@@ -7,7 +7,6 @@ namespace myslam
 {
 namespace backend
 {
-
 unsigned long global_edge_id = 0;
 
 Edge::Edge(int residual_dimension, int num_verticies, const std::vector<std::string>& verticies_types)
@@ -16,7 +15,9 @@ Edge::Edge(int residual_dimension, int num_verticies, const std::vector<std::str
     //    verticies_.resize(num_verticies);      // TODO::
     //    这里可能会存在问题，比如这里resize了3个空,后续调用edge->addVertex. 使得vertex前面会存在空元素
     if (!verticies_types.empty())
+    {
         verticies_types_ = verticies_types;
+    }
     jacobians_.resize(num_verticies);
     id_ = global_edge_id++;
 
@@ -25,8 +26,8 @@ Edge::Edge(int residual_dimension, int num_verticies, const std::vector<std::str
     information_ = information;
 
     lossfunction_ = NULL;
-    //    cout<<"Edge construct residual_dimension="<<residual_dimension
-    //            << ", num_verticies="<<num_verticies<<", id_="<<id_<<endl;
+    LOG(INFO) << "Edge construct residual_dimension=" << residual_dimension << ", num_verticies=" << num_verticies
+              << ", id_=" << id_;
 }
 
 Edge::~Edge()
@@ -51,6 +52,7 @@ double Edge::RobustChi2() const
     }
     return e2;
 }
+
 void Edge::RobustInfo(double& drho, MatXX& info) const
 {
     if (lossfunction_)

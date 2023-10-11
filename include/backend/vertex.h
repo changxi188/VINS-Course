@@ -1,6 +1,7 @@
 #ifndef MYSLAM_BACKEND_VERTEX_H
 #define MYSLAM_BACKEND_VERTEX_H
 
+#include <glog/logging.h>
 #include "eigen_types.h"
 
 namespace myslam

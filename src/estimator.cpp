@@ -40,7 +40,8 @@ void Estimator::setParameter()
     LOG(INFO) << "Estimator::setParameter FOCAL_LENGTH: " << FOCAL_LENGTH;
     f_manager_.setRic(ric_);
     project_sqrt_info_ = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
-    td_                = TD;
+    LOG(INFO) << "setParameter --- project_sqrt_info_ : " << project_sqrt_info_;
+    td_ = TD;
 }
 
 void Estimator::clearState()
@@ -995,7 +996,7 @@ void Estimator::problemSolve()
     }
     LOG(INFO) << "problemSolve --- pose dim : " << pose_dim;
 
-    // IMU
+    // IMU Factor
     for (int i = 0; i < WINDOW_SIZE; i++)
     {
         int j = i + 1;
@@ -1022,8 +1023,10 @@ void Estimator::problemSolve()
         for (auto& it_per_id : f_manager_.feature_)
         {
             it_per_id.used_num = it_per_id.feature_per_frame.size();
-            if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+            if (it_per_id.used_num < 2 || it_per_id.start_frame >= WINDOW_SIZE - 2)
+            {
                 continue;
+            }
 
             ++feature_index;
 
@@ -1041,8 +1044,11 @@ void Estimator::problemSolve()
             for (auto& it_per_frame : it_per_id.feature_per_frame)
             {
                 imu_j++;
+
                 if (imu_i == imu_j)
+                {
                     continue;
+                }
 
                 Eigen::Vector3d pts_j = it_per_frame.point;
 

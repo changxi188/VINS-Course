@@ -1,11 +1,10 @@
-#include "backend/vertex.h"
 #include <iostream>
+#include "backend/vertex.h"
 
 namespace myslam
 {
 namespace backend
 {
-
 unsigned long global_vertex_id = 0;
 
 Vertex::Vertex(int num_dimension, int local_dimension)
@@ -14,8 +13,8 @@ Vertex::Vertex(int num_dimension, int local_dimension)
     local_dimension_ = local_dimension > 0 ? local_dimension : num_dimension;
     id_              = global_vertex_id++;
 
-    //    std::cout << "Vertex construct num_dimension: " << num_dimension
-    //              << " local_dimension: " << local_dimension << " id_: " << id_ << std::endl;
+    LOG(INFO) << "Vertex construct num_dimension: " << num_dimension << " local_dimension: " << local_dimension
+              << " id_: " << id_ << std::endl;
 }
 
 Vertex::~Vertex()

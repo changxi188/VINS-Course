@@ -1,13 +1,13 @@
 #ifndef MYSLAM_BACKEND_PROBLEM_H
 #define MYSLAM_BACKEND_PROBLEM_H
 
+#include <glog/logging.h>
 #include <map>
 #include <memory>
 #include <unordered_map>
 
 #include "edge.h"
 #include "eigen_types.h"
-#include "parameters.h"
 #include "vertex.h"
 
 typedef unsigned long ulong;
@@ -16,7 +16,6 @@ namespace myslam
 {
 namespace backend
 {
-
 typedef unsigned long ulong;
 //    typedef std::unordered_map<unsigned long, std::shared_ptr<Vertex>> HashVertex;
 typedef std::map<unsigned long, std::shared_ptr<Vertex>>              HashVertex;

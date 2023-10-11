@@ -45,7 +45,7 @@ bool Problem::AddVertex(std::shared_ptr<Vertex> vertex)
 {
     if (verticies_.find(vertex->Id()) != verticies_.end())
     {
-        // LOG(WARNING) << "Vertex " << vertex->Id() << " has been added before";
+        LOG(WARNING) << "Vertex " << vertex->Id() << " has been added before";
         return false;
     }
     else
@@ -89,6 +89,7 @@ void Problem::ResizePoseHessiansWhenAddingPose(std::shared_ptr<Vertex> v)
     H_prior_.rightCols(v->LocalDimension()).setZero();
     H_prior_.bottomRows(v->LocalDimension()).setZero();
 }
+
 void Problem::ExtendHessiansPriorSize(int dim)
 {
     int size = H_prior_.rows() + dim;
@@ -120,7 +121,7 @@ bool Problem::AddEdge(std::shared_ptr<Edge> edge)
     }
     else
     {
-        // LOG(WARNING) << "Edge " << edge->Id() << " has been added before!";
+        LOG(WARNING) << "Edge " << edge->Id() << " has been added before!";
         return false;
     }
 
@@ -139,7 +140,9 @@ std::vector<std::shared_ptr<Edge>> Problem::GetConnectedEdges(std::shared_ptr<Ve
     {
         // 并且这个edge还需要存在，而不是已经被remove了
         if (edges_.find(iter->second->Id()) == edges_.end())
+        {
             continue;
+        }
 
         edges.emplace_back(iter->second);
     }

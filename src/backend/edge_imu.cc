@@ -68,7 +68,7 @@ void EdgeImu::ComputeJacobians()
 
     if (pre_integration_->jacobian_.maxCoeff() > 1e8 || pre_integration_->jacobian_.minCoeff() < -1e8)
     {
-        // ROS_WARN("numerical unstable in preintegration");
+        LOG(WARNING) << "numerical unstable in preintegration";
     }
 
     //    if (jacobians[0])
